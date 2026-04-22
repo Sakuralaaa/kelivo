@@ -15,7 +15,7 @@ class DesktopNavRail extends StatelessWidget {
     super.key,
     required this.activeIndex,
     this.globalSearchActive = false,
-    this.pureImageMode = true,
+    required this.pureImageMode,
     required this.onTapChat,
     required this.onTapGlobalSearch,
     required this.onTapTranslate,

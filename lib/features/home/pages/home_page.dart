@@ -826,7 +826,17 @@ class _HomePageState extends State<HomePage>
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
     final modelIds = getActiveModelIds(settings, assistant: assistant);
-    final key = (modelIds.providerKey ?? '').toLowerCase();
+    final providerKey = modelIds.providerKey;
+    if (providerKey == null || providerKey.trim().isEmpty) {
+      return const _ImageGatewayCapability(
+        maxCount: 1,
+        supportsNegativePrompt: false,
+        supportsSeed: false,
+        supportsAspectRatio: false,
+        sizes: ['1024x1024'],
+      );
+    }
+    final key = providerKey.toLowerCase();
     if (key.contains('chatgpt2api')) {
       return const _ImageGatewayCapability(
         maxCount: 4,
@@ -982,7 +992,6 @@ class _HomePageState extends State<HomePage>
                 controller: _imageNegativeController,
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: l10n.defaultModelPagePromptLabel,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 8,
@@ -1013,7 +1022,6 @@ class _HomePageState extends State<HomePage>
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: l10n.defaultModelPagePromptLabel,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 8,

@@ -1007,22 +1007,19 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Tooltip(
-                                message: l10n.defaultModelPagePromptLabel,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () {
-                                    widget.onUseGlobalSearchResultForPrompt?.call(
-                                      result,
-                                    );
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(2),
-                                    child: Icon(
-                                      Lucide.WandSparkles,
-                                      size: 14,
-                                      color: textBase.withValues(alpha: 0.7),
-                                    ),
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  widget.onUseGlobalSearchResultForPrompt?.call(
+                                    result,
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
+                                  child: Icon(
+                                    Lucide.WandSparkles,
+                                    size: 14,
+                                    color: textBase.withValues(alpha: 0.7),
                                   ),
                                 ),
                               ),
