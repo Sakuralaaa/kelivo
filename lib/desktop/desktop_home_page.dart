@@ -32,6 +32,11 @@ class DesktopHomePage extends StatefulWidget {
 }
 
 class _DesktopHomePageState extends State<DesktopHomePage> {
+  static const int _chatTabIndex = 0;
+  static const int _translateTabIndex = 1;
+  static const int _storageTabIndex = 2;
+  static const int _settingsTabIndex = 3;
+
   int _tabIndex = 0; // 0=Chat, 1=Translate, 2=Storage, 3=Settings
   bool _storageVisited = false;
   bool _globalSearchActive = false;
@@ -44,9 +49,9 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
     if (widget.initialTabIndex != null) {
       _tabIndex = widget.initialTabIndex!.clamp(0, 3);
     }
-    _storageVisited = _tabIndex == 2;
+    _storageVisited = _tabIndex == _storageTabIndex;
     // 初始进入时如果就是聊天页，则聚焦聊天输入框
-    if (_tabIndex == 0) {
+    if (_tabIndex == _chatTabIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ChatActionBus.instance.fire(ChatAction.focusInput);
       });
@@ -57,7 +62,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
         case HotkeyAction.openSettings:
           if (mounted) {
             setState(() {
-              _tabIndex = 3;
+              _tabIndex = _settingsTabIndex;
               _globalSearchActive = false;
             });
             ChatActionBus.instance.fire(ChatAction.exitGlobalSearch);
@@ -82,13 +87,13 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
               await windowManager.show();
               await windowManager.focus();
               // 如果当前是聊天页，显示窗口时聚焦输入框
-              if (_tabIndex == 0) {
+              if (_tabIndex == _chatTabIndex) {
                 ChatActionBus.instance.fire(ChatAction.focusInput);
               }
             } else if (!focused) {
               await windowManager.focus();
               // 如果当前是聊天页，聚焦窗口时也聚焦输入框
-              if (_tabIndex == 0) {
+              if (_tabIndex == _chatTabIndex) {
                 ChatActionBus.instance.fire(ChatAction.focusInput);
               }
             } else {
@@ -97,22 +102,22 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
           } catch (_) {}
           break;
         case HotkeyAction.newTopic:
-          if (_tabIndex == 0) {
+          if (_tabIndex == _chatTabIndex) {
             ChatActionBus.instance.fire(ChatAction.newTopic);
           }
           break;
         case HotkeyAction.switchModel:
-          if (_tabIndex == 0) {
+          if (_tabIndex == _chatTabIndex) {
             ChatActionBus.instance.fire(ChatAction.switchModel);
           }
           break;
         case HotkeyAction.toggleLeftPanelAssistants:
-          if (_tabIndex == 0) {
+          if (_tabIndex == _chatTabIndex) {
             ChatActionBus.instance.fire(ChatAction.toggleLeftPanelAssistants);
           }
           break;
         case HotkeyAction.toggleLeftPanelTopics:
-          if (_tabIndex == 0) {
+          if (_tabIndex == _chatTabIndex) {
             ChatActionBus.instance.fire(ChatAction.toggleLeftPanelTopics);
           }
           break;
@@ -148,7 +153,11 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
     final isWindows = defaultTargetPlatform == TargetPlatform.windows;
     final pureImageMode = context.watch<SettingsProvider>().pureImageMode;
     final activeTabIndex =
-        (pureImageMode && (_tabIndex == 1 || _tabIndex == 2)) ? 0 : _tabIndex;
+        (pureImageMode &&
+            (_tabIndex == _translateTabIndex ||
+                _tabIndex == _storageTabIndex))
+        ? _chatTabIndex
+        : _tabIndex;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -165,7 +174,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
               pureImageMode: pureImageMode,
               onTapChat: () {
                 setState(() {
-                  _tabIndex = 0;
+                  _tabIndex = _chatTabIndex;
                   _globalSearchActive = false;
                 });
                 ChatActionBus.instance.fire(ChatAction.exitGlobalSearch);
@@ -174,27 +183,27 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
               },
               onTapGlobalSearch: () {
                 setState(() {
-                  _tabIndex = 0;
+                  _tabIndex = _chatTabIndex;
                   _globalSearchActive = true;
                 });
                 ChatActionBus.instance.fire(ChatAction.enterGlobalSearch);
               },
               onTapTranslate: () {
                 setState(() {
-                  _tabIndex = 1;
+                  _tabIndex = _translateTabIndex;
                   _globalSearchActive = false;
                 });
                 ChatActionBus.instance.fire(ChatAction.exitGlobalSearch);
               },
               onTapStorage: () => setState(() {
-                _tabIndex = 2;
+                _tabIndex = _storageTabIndex;
                 _globalSearchActive = false;
                 _storageVisited = true;
                 ChatActionBus.instance.fire(ChatAction.exitGlobalSearch);
               }),
               onTapSettings: () {
                 setState(() {
-                  _tabIndex = 3;
+                  _tabIndex = _settingsTabIndex;
                   _globalSearchActive = false;
                 });
                 ChatActionBus.instance.fire(ChatAction.exitGlobalSearch);
@@ -242,7 +251,8 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
                         body,
                         // Inject the lazily-built settings page into the IndexedStack when needed
                         // to pass initialProviderKey without dropping chat state.
-                        if (_tabIndex == 3) const SizedBox.shrink(),
+                        if (_tabIndex == _settingsTabIndex)
+                          const SizedBox.shrink(),
                       ],
                     ),
                   ),
