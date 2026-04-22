@@ -21,6 +21,7 @@ import '../../../core/models/chat_message.dart';
 import '../../../core/services/android_process_text.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/platform_utils.dart';
+import '../../../icons/lucide_adapter.dart';
 import '../../../desktop/search_provider_popover.dart';
 import '../../../desktop/reasoning_budget_popover.dart';
 import '../../../desktop/mcp_servers_popover.dart';
@@ -836,8 +837,8 @@ class _HomePageState extends State<HomePage>
         sizes: ['1024x1024'],
       );
     }
-    final key = providerKey.toLowerCase();
-    if (key.contains('chatgpt2api')) {
+    final key = providerKey.toLowerCase().trim();
+    if (key == 'chatgpt2api') {
       return const _ImageGatewayCapability(
         maxCount: 4,
         supportsNegativePrompt: true,
@@ -846,7 +847,7 @@ class _HomePageState extends State<HomePage>
         sizes: ['1024x1024', '1024x1536', '1536x1024'],
       );
     }
-    if (key.contains('grok2api')) {
+    if (key == 'grok2api') {
       return const _ImageGatewayCapability(
         maxCount: 2,
         supportsNegativePrompt: false,
@@ -855,7 +856,7 @@ class _HomePageState extends State<HomePage>
         sizes: ['1024x1024'],
       );
     }
-    if (key.contains('flow2api')) {
+    if (key == 'flow2api') {
       return const _ImageGatewayCapability(
         maxCount: 8,
         supportsNegativePrompt: true,
@@ -880,7 +881,8 @@ class _HomePageState extends State<HomePage>
     final pureImageMode = context.read<SettingsProvider>().pureImageMode;
     if (!pureImageMode) return input;
     final capability = _resolveImageCapability(context);
-    final count = _imageCount.clamp(1, capability.maxCount);
+    final maxCount = capability.maxCount < 1 ? 1 : capability.maxCount;
+    final count = _imageCount.clamp(1, maxCount);
     final parts = <String>[
       '[image_generation_request]',
       'prompt: ${input.text.trim()}',
@@ -992,6 +994,11 @@ class _HomePageState extends State<HomePage>
                 controller: _imageNegativeController,
                 decoration: InputDecoration(
                   isDense: true,
+                  prefixIcon: const Icon(Lucide.Minus, size: 14),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 20,
+                  ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 8,
@@ -1022,6 +1029,11 @@ class _HomePageState extends State<HomePage>
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   isDense: true,
+                  prefixIcon: const Icon(Lucide.Hash, size: 14),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 20,
+                  ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 8,

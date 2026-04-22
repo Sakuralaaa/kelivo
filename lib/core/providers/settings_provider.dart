@@ -307,7 +307,14 @@ class SettingsProvider extends ChangeNotifier {
   // When enabled, force pure white/black backgrounds regardless of theme color
   bool _usePureBackground = false;
   bool get usePureBackground => _usePureBackground;
-  // When enabled, desktop shell is optimized for image-generation-first workflow.
+  /// Controls whether desktop UI defaults to an image-generation-first workflow.
+  ///
+  /// When enabled:
+  /// - Desktop rail focuses on image generation, global search, and settings.
+  /// - Home input area exposes image-generation parameters for faster iteration.
+  ///
+  /// This flag only changes shell/interaction defaults and does not remove
+  /// existing conversation data or provider configurations.
   bool _pureImageMode = true;
   bool get pureImageMode => _pureImageMode;
 
