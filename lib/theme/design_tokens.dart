@@ -25,3 +25,11 @@ class AppSpacing {
   static const double md = 16;
   static const double lg = 20;
 }
+
+class NotionTokens {
+  static const double blockRadius = 12;
+  static const double blockGap = 8;
+  static const double softBorderWidth = 0.8;
+  static const double panelPaddingH = 10;
+  static const double panelPaddingV = 8;
+}

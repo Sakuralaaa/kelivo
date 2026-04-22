@@ -176,6 +176,7 @@ class SettingsProvider extends ChangeNotifier {
       'display_desktop_minimize_to_tray_on_close_v1';
   static const String _displayUsePureBackgroundKey =
       'display_use_pure_background_v1';
+  static const String _displayPureImageModeKey = 'display_pure_image_mode_v1';
   static const String _displayChatMessageBackgroundStyleKey =
       'display_chat_message_background_style_v1';
   // Network request logging (debug)
@@ -306,6 +307,9 @@ class SettingsProvider extends ChangeNotifier {
   // When enabled, force pure white/black backgrounds regardless of theme color
   bool _usePureBackground = false;
   bool get usePureBackground => _usePureBackground;
+  // When enabled, desktop shell is optimized for image-generation-first workflow.
+  bool _pureImageMode = true;
+  bool get pureImageMode => _pureImageMode;
 
   // Desktop UI persisted state
   double _desktopSidebarWidth = 240;
@@ -837,6 +841,13 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.setBool(_displayUsePureBackgroundKey, _usePureBackground);
     } else {
       _usePureBackground = pureBgPref;
+    }
+    final pureImageModePref = prefs.getBool(_displayPureImageModeKey);
+    if (pureImageModePref == null) {
+      _pureImageMode = true;
+      await prefs.setBool(_displayPureImageModeKey, _pureImageMode);
+    } else {
+      _pureImageMode = pureImageModePref;
     }
     // display: markdown/math rendering
     _enableDollarLatex = prefs.getBool(_displayEnableDollarLatexKey) ?? true;
@@ -1919,6 +1930,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_displayUsePureBackgroundKey, v);
+  }
+
+  Future<void> setPureImageMode(bool v) async {
+    if (_pureImageMode == v) return;
+    _pureImageMode = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayPureImageModeKey, v);
   }
 
   // Display: chat message background style (affects user/assistant bubbles)

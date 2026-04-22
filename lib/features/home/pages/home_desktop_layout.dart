@@ -22,6 +22,7 @@ import '../../../desktop/hotkeys/chat_action_bus.dart';
 import '../../../desktop/hotkeys/sidebar_tab_bus.dart';
 import '../widgets/assistant_avatar.dart';
 import '../widgets/assistant_entry_actions.dart';
+import '../../search/services/global_session_search_service.dart';
 
 /// Desktop/Tablet layout scaffold for the home page
 /// Handles the overall structure: left sidebar, main content, optional right sidebar
@@ -53,6 +54,7 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.globalSearchQuery,
     required this.onGlobalSearchQueryChanged,
     required this.onOpenGlobalSearchResult,
+    this.onUseGlobalSearchResultForPrompt,
     required this.onSidebarWidthChanged,
     required this.onSidebarWidthChangeEnd,
     required this.onRightSidebarWidthChanged,
@@ -89,6 +91,8 @@ class HomeDesktopScaffold extends StatelessWidget {
   final ValueChanged<String> onGlobalSearchQueryChanged;
   final Future<void> Function(String conversationId, String messageId)
   onOpenGlobalSearchResult;
+  final ValueChanged<GlobalSessionSearchResult>?
+  onUseGlobalSearchResultForPrompt;
   final void Function(double dx) onSidebarWidthChanged;
   final VoidCallback onSidebarWidthChangeEnd;
   final void Function(double dx) onRightSidebarWidthChanged;
@@ -185,6 +189,7 @@ class HomeDesktopScaffold extends StatelessWidget {
         ChatActionBus.instance.fire(ChatAction.exitGlobalSearch);
       },
       onOpenGlobalSearchResult: onOpenGlobalSearchResult,
+      onUseGlobalSearchResultForPrompt: onUseGlobalSearchResultForPrompt,
       onNewConversation: ({closeDrawer = true}) => onNewConversation(),
       onSelectConversation: (id, {closeDrawer = true}) =>
           onSelectConversation(id),
@@ -247,6 +252,7 @@ class HomeDesktopScaffold extends StatelessWidget {
                   onEnterGlobalSearch: () {},
                   onExitGlobalSearch: () {},
                   onOpenGlobalSearchResult: (_, __) async {},
+                  onUseGlobalSearchResultForPrompt: null,
                   onSelectConversation: (id, {closeDrawer = true}) =>
                       onSelectConversation(id),
                   onNewConversation: ({closeDrawer = true}) =>

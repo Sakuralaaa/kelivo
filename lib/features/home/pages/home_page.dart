@@ -52,6 +52,7 @@ import '../utils/model_display_helper.dart';
 import '../utils/chat_layout_constants.dart';
 import '../controllers/home_page_controller.dart';
 import '../controllers/scroll_controller.dart' as scroll_ctrl;
+import '../../search/services/global_session_search_service.dart';
 import 'home_mobile_layout.dart';
 import 'home_desktop_layout.dart';
 
@@ -74,6 +75,9 @@ class _HomePageState extends State<HomePage>
   final ValueNotifier<int> _assistantPickerCloseTick = ValueNotifier<int>(0);
   final FocusNode _inputFocus = FocusNode();
   final TextEditingController _inputController = TextEditingController();
+  final TextEditingController _imageNegativeController =
+      TextEditingController();
+  final TextEditingController _imageSeedController = TextEditingController();
   final ChatInputBarController _mediaController = ChatInputBarController();
   final scroll_ctrl.ChatAutoFollowScrollController _scrollController =
       scroll_ctrl.ChatAutoFollowScrollController();
@@ -88,6 +92,11 @@ class _HomePageState extends State<HomePage>
   // ============================================================================
 
   late HomePageController _controller;
+  String _imageNegativePrompt = '';
+  String _imageSize = '1024x1024';
+  String _imageAspectRatio = '1:1';
+  int _imageCount = 1;
+  String _imageSeed = '';
 
   // ============================================================================
   // Lifecycle
@@ -113,6 +122,12 @@ class _HomePageState extends State<HomePage>
 
     _controller.addListener(_onControllerChanged);
     _drawerController.addListener(_onDrawerValueChanged);
+    _imageNegativeController.addListener(() {
+      _imageNegativePrompt = _imageNegativeController.text;
+    });
+    _imageSeedController.addListener(() {
+      _imageSeed = _imageSeedController.text;
+    });
 
     _controller.initChat();
     _initProcessText();
@@ -158,6 +173,8 @@ class _HomePageState extends State<HomePage>
     _drawerController.removeListener(_onDrawerValueChanged);
     _inputFocus.dispose();
     _inputController.dispose();
+    _imageNegativeController.dispose();
+    _imageSeedController.dispose();
     _scrollController.dispose();
     _controller.dispose();
     routeObserver.unsubscribe(this);
@@ -319,6 +336,7 @@ class _HomePageState extends State<HomePage>
           _controller.exitGlobalSearchMode(clearQuery: true),
       onOpenGlobalSearchResult: (convId, msgId) => _controller
           .openGlobalSearchResult(conversationId: convId, messageId: msgId),
+      onUseGlobalSearchResultForPrompt: _useGlobalSearchResultAsPrompt,
       appBarOverride: _controller.selecting
           ? ChatSelectionAppBar(
               selectedCount: _controller.selectedCount,
@@ -466,6 +484,7 @@ class _HomePageState extends State<HomePage>
       onGlobalSearchQueryChanged: _controller.setGlobalSearchQuery,
       onOpenGlobalSearchResult: (convId, msgId) => _controller
           .openGlobalSearchResult(conversationId: convId, messageId: msgId),
+      onUseGlobalSearchResultForPrompt: _useGlobalSearchResultAsPrompt,
       onSelectModel: () => showModelSelectSheet(context),
       onSidebarWidthChanged: _controller.updateSidebarWidth,
       onSidebarWidthChangeEnd: _controller.saveSidebarWidth,
@@ -803,8 +822,250 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  _ImageGatewayCapability _resolveImageCapability(BuildContext context) {
+    final settings = context.read<SettingsProvider>();
+    final assistant = context.read<AssistantProvider>().currentAssistant;
+    final modelIds = getActiveModelIds(settings, assistant: assistant);
+    final key = (modelIds.providerKey ?? '').toLowerCase();
+    if (key.contains('chatgpt2api')) {
+      return const _ImageGatewayCapability(
+        maxCount: 4,
+        supportsNegativePrompt: true,
+        supportsSeed: true,
+        supportsAspectRatio: true,
+        sizes: ['1024x1024', '1024x1536', '1536x1024'],
+      );
+    }
+    if (key.contains('grok2api')) {
+      return const _ImageGatewayCapability(
+        maxCount: 2,
+        supportsNegativePrompt: false,
+        supportsSeed: true,
+        supportsAspectRatio: false,
+        sizes: ['1024x1024'],
+      );
+    }
+    if (key.contains('flow2api')) {
+      return const _ImageGatewayCapability(
+        maxCount: 8,
+        supportsNegativePrompt: true,
+        supportsSeed: false,
+        supportsAspectRatio: true,
+        sizes: ['512x512', '768x768', '1024x1024'],
+      );
+    }
+    return const _ImageGatewayCapability(
+      maxCount: 4,
+      supportsNegativePrompt: true,
+      supportsSeed: true,
+      supportsAspectRatio: true,
+      sizes: ['1024x1024'],
+    );
+  }
+
+  ChatInputData _composePureImageInput(
+    BuildContext context,
+    ChatInputData input,
+  ) {
+    final pureImageMode = context.read<SettingsProvider>().pureImageMode;
+    if (!pureImageMode) return input;
+    final capability = _resolveImageCapability(context);
+    final count = _imageCount.clamp(1, capability.maxCount);
+    final parts = <String>[
+      '[image_generation_request]',
+      'prompt: ${input.text.trim()}',
+      'size: $_imageSize',
+      if (capability.supportsAspectRatio) 'aspect_ratio: $_imageAspectRatio',
+      'count: $count',
+      if (capability.supportsNegativePrompt &&
+          _imageNegativePrompt.trim().isNotEmpty)
+        'negative_prompt: ${_imageNegativePrompt.trim()}',
+      if (capability.supportsSeed && _imageSeed.trim().isNotEmpty)
+        'seed: ${_imageSeed.trim()}',
+      '[/image_generation_request]',
+    ];
+    return ChatInputData(
+      text: parts.join('\n'),
+      imagePaths: input.imagePaths,
+      documents: input.documents,
+    );
+  }
+
+  void _useGlobalSearchResultAsPrompt(GlobalSessionSearchResult result) {
+    final snippet = [result.conversationTitle, result.snippet]
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .join('\n');
+    if (snippet.isEmpty) return;
+    final current = _inputController.text.trim();
+    final next = current.isEmpty ? snippet : '$current\n$snippet';
+    _inputController.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+      composing: TextRange.empty,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _inputFocus.requestFocus();
+      _controller.forceScrollToBottomSoon(animate: false);
+    });
+  }
+
+  Widget _buildPureImageModeToolbar(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final capability = _resolveImageCapability(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: NotionTokens.blockGap),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NotionTokens.panelPaddingH,
+        vertical: NotionTokens.panelPaddingV,
+      ),
+      decoration: BoxDecoration(
+        color: cs.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(NotionTokens.blockRadius),
+        border: Border.all(
+          width: NotionTokens.softBorderWidth,
+          color: cs.outlineVariant.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            l10n.modelDetailSheetImageMode,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface.withValues(alpha: 0.72),
+            ),
+          ),
+          _buildCycleChip(
+            context,
+            tooltip: l10n.providerDetailPageCapsImage,
+            value: _imageSize,
+            onTap: () {
+              final options = capability.sizes;
+              if (options.isEmpty) return;
+              final currentIndex = options.indexOf(_imageSize);
+              final nextIndex = (currentIndex + 1) % options.length;
+              setState(() => _imageSize = options[nextIndex]);
+            },
+          ),
+          if (capability.supportsAspectRatio)
+            _buildCycleChip(
+              context,
+              tooltip: l10n.settingsPageDisplay,
+              value: _imageAspectRatio,
+              onTap: () {
+                const options = ['1:1', '4:3', '3:4', '16:9', '9:16'];
+                final idx = options.indexOf(_imageAspectRatio);
+                final next = options[(idx + 1) % options.length];
+                setState(() => _imageAspectRatio = next);
+              },
+            ),
+          _buildCycleChip(
+            context,
+            tooltip: l10n.storageSpaceCategoryImages,
+            value: 'x$_imageCount',
+            onTap: () {
+              final next = (_imageCount % capability.maxCount) + 1;
+              setState(() => _imageCount = next);
+            },
+          ),
+          if (capability.supportsNegativePrompt)
+            SizedBox(
+              width: 160,
+              child: TextField(
+                controller: _imageNegativeController,
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: l10n.defaultModelPagePromptLabel,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: cs.outlineVariant.withValues(alpha: 0.28),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (capability.supportsSeed)
+            SizedBox(
+              width: 112,
+              child: TextField(
+                controller: _imageSeedController,
+                onChanged: (v) {
+                  final next = v.replaceAll(RegExp(r'[^0-9]'), '');
+                  if (next == v) return;
+                  _imageSeedController.value = TextEditingValue(
+                    text: next,
+                    selection: TextSelection.collapsed(offset: next.length),
+                    composing: TextRange.empty,
+                  );
+                },
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: l10n.defaultModelPagePromptLabel,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: cs.outlineVariant.withValues(alpha: 0.28),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCycleChip(
+    BuildContext context, {
+    required String tooltip,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: cs.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: cs.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildChatInputBar(BuildContext context, {required bool isTablet}) {
-    return ChatInputSection(
+    final pureImageMode = context.watch<SettingsProvider>().pureImageMode;
+    final chatInput = ChatInputSection(
       inputBarKey: _inputBarKey,
       inputFocus: _inputFocus,
       inputController: _inputController,
@@ -857,8 +1118,9 @@ class _HomePageState extends State<HomePage>
           );
         }
       },
-      onSend: (text) async {
-        final result = await _controller.sendMessage(text);
+      onSend: (input) async {
+        final payload = _composePureImageInput(context, input);
+        final result = await _controller.sendMessage(payload);
         if (!mounted) return result;
         if (PlatformUtils.isMobile &&
             result == ChatInputSubmissionResult.sent) {
@@ -904,6 +1166,14 @@ class _HomePageState extends State<HomePage>
       onLongPressLearning: _showLearningPromptSheet,
       onClearContext: _controller.clearContext,
       onCompressContext: _handleDesktopCompressContext,
+    );
+    if (!pureImageMode) return chatInput;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildPureImageModeToolbar(context),
+        chatInput,
+      ],
     );
   }
 
@@ -1256,4 +1526,20 @@ class _HomePageState extends State<HomePage>
     }
     return result;
   }
+}
+
+class _ImageGatewayCapability {
+  const _ImageGatewayCapability({
+    required this.maxCount,
+    required this.supportsNegativePrompt,
+    required this.supportsSeed,
+    required this.supportsAspectRatio,
+    required this.sizes,
+  });
+
+  final int maxCount;
+  final bool supportsNegativePrompt;
+  final bool supportsSeed;
+  final bool supportsAspectRatio;
+  final List<String> sizes;
 }

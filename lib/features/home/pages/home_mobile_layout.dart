@@ -15,6 +15,7 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/haptics.dart';
+import '../../search/services/global_session_search_service.dart';
 import '../../../shared/animations/widgets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -47,6 +48,7 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.onEnterGlobalSearch,
     required this.onExitGlobalSearch,
     required this.onOpenGlobalSearchResult,
+    this.onUseGlobalSearchResultForPrompt,
     this.appBarOverride,
     required this.body,
   });
@@ -72,6 +74,8 @@ class HomeMobileScaffold extends StatelessWidget {
   final VoidCallback onExitGlobalSearch;
   final Future<void> Function(String conversationId, String messageId)
   onOpenGlobalSearchResult;
+  final ValueChanged<GlobalSessionSearchResult>?
+  onUseGlobalSearchResultForPrompt;
   final PreferredSizeWidget? appBarOverride;
   final Widget body;
 
@@ -98,6 +102,10 @@ class HomeMobileScaffold extends StatelessWidget {
         onExitGlobalSearch: onExitGlobalSearch,
         onOpenGlobalSearchResult: (conversationId, messageId) async {
           await onOpenGlobalSearchResult(conversationId, messageId);
+          drawerController.close();
+        },
+        onUseGlobalSearchResultForPrompt: (result) {
+          onUseGlobalSearchResultForPrompt?.call(result);
           drawerController.close();
         },
         onSelectConversation: (id, {closeDrawer = true}) {

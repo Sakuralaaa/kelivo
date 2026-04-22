@@ -8,6 +8,8 @@ import 'desktop_settings_page.dart';
 import 'desktop_translate_page.dart';
 import '../features/settings/pages/storage_space_page.dart';
 import '../l10n/app_localizations.dart';
+import '../core/providers/settings_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:async';
 import 'hotkeys/hotkey_event_bus.dart';
@@ -144,6 +146,9 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
     const minHeight = 640.0;
 
     final isWindows = defaultTargetPlatform == TargetPlatform.windows;
+    final pureImageMode = context.watch<SettingsProvider>().pureImageMode;
+    final activeTabIndex =
+        (pureImageMode && (_tabIndex == 1 || _tabIndex == 2)) ? 0 : _tabIndex;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -155,8 +160,9 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
         Widget body = Row(
           children: [
             DesktopNavRail(
-              activeIndex: _tabIndex,
+              activeIndex: activeTabIndex,
               globalSearchActive: _globalSearchActive,
+              pureImageMode: pureImageMode,
               onTapChat: () {
                 setState(() {
                   _tabIndex = 0;
@@ -198,7 +204,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
               // Keep all pages alive so ongoing chat streams are not canceled
               // when switching tabs (Chat/Translate/Settings) on desktop.
               child: IndexedStack(
-                index: _tabIndex,
+                index: activeTabIndex,
                 children: [
                   // Chat page remains mounted
                   const DesktopChatPage(),

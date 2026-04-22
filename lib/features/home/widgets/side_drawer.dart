@@ -65,6 +65,7 @@ class SideDrawer extends StatefulWidget {
     this.onEnterGlobalSearch,
     this.onExitGlobalSearch,
     this.onOpenGlobalSearchResult,
+    this.onUseGlobalSearchResultForPrompt,
   });
 
   final String userName;
@@ -90,6 +91,8 @@ class SideDrawer extends StatefulWidget {
   final VoidCallback? onExitGlobalSearch;
   final Future<void> Function(String conversationId, String messageId)?
   onOpenGlobalSearchResult;
+  final ValueChanged<GlobalSessionSearchResult>?
+  onUseGlobalSearchResultForPrompt;
 
   @override
   State<SideDrawer> createState() => _SideDrawerState();
@@ -986,17 +989,44 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          RichText(
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            text: TextSpan(
-                              children: _highlightText(
-                                result.conversationTitle,
-                                tokens,
-                                titleStyle,
-                                titleHighlight,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: RichText(
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  text: TextSpan(
+                                    children: _highlightText(
+                                      result.conversationTitle,
+                                      tokens,
+                                      titleStyle,
+                                      titleHighlight,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              Tooltip(
+                                message: l10n.defaultModelPagePromptLabel,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () {
+                                    widget.onUseGlobalSearchResultForPrompt?.call(
+                                      result,
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(2),
+                                    child: Icon(
+                                      Lucide.WandSparkles,
+                                      size: 14,
+                                      color: textBase.withValues(alpha: 0.7),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           if (result.snippet.isNotEmpty) ...[
                             const SizedBox(height: 2),
