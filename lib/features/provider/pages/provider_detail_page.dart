@@ -121,6 +121,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       const fixed = {
         'KelivoIN',
         'OpenAI',
+        'ChatGPT2API',
+        'Grok2API',
+        'Flow2API',
         'Gemini',
         'SiliconFlow',
         'OpenRouter',

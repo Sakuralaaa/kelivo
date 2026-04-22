@@ -64,6 +64,16 @@ Thanks to [siliconflow.cn](https://siliconflow.cn) for providing free models in 
 - ✅ macOS
 - ✅ Linux
 
+## 🖼️ Image API Quick Setup (OpenAI-compatible)
+
+Three image-focused built-in provider presets are now included:
+
+- `ChatGPT2API` (default `http://127.0.0.1:8000/v1`)
+- `Grok2API` (default `http://127.0.0.1:8000/v1`)
+- `Flow2API` (default `http://127.0.0.1:8000/v1`)
+
+These presets include sample image models and use the OpenAI-compatible `/chat/completions` flow for text-to-image / image-to-image usage. If your gateway is hosted elsewhere, update `API Base Url` in provider detail.
+
 ## 🤝 Contribution Guide
 
 Pull Requests and Issues are welcome!

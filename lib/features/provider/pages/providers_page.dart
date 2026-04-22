@@ -464,6 +464,9 @@ class _ProvidersPageState extends State<ProvidersPage> {
 
   List<_Provider> _providers({required AppLocalizations l10n}) => [
     _p('OpenAI', 'OpenAI', enabled: true, models: 0),
+    _p('ChatGPT2API', 'ChatGPT2API', enabled: true, models: 0),
+    _p('Grok2API', 'Grok2API', enabled: true, models: 0),
+    _p('Flow2API', 'Flow2API', enabled: true, models: 0),
     _p(
       l10n.providersPageSiliconFlowName,
       'SiliconFlow',

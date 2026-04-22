@@ -42,6 +42,9 @@ class SettingsProvider extends ChangeNotifier {
   static const String providerUngroupedGroupKey = '__ungrouped__';
   static const List<String> _builtInProviderKeysInOrder = [
     'OpenAI',
+    'ChatGPT2API',
+    'Grok2API',
+    'Flow2API',
     'SiliconFlow',
     'Gemini',
     'OpenRouter',
@@ -1030,6 +1033,9 @@ class SettingsProvider extends ChangeNotifier {
     if (_providerConfigs.isEmpty) {
       // Seed a couple of sensible defaults on first launch, but do not recreate
       // providers implicitly during later reads (e.g., when switching chats).
+      ensureProviderConfig('ChatGPT2API', defaultName: 'ChatGPT2API');
+      ensureProviderConfig('Grok2API', defaultName: 'Grok2API');
+      ensureProviderConfig('Flow2API', defaultName: 'Flow2API');
       ensureProviderConfig('KelivoIN', defaultName: 'KelivoIN');
       ensureProviderConfig('Tensdaq', defaultName: 'Tensdaq');
       ensureProviderConfig('SiliconFlow', defaultName: 'SiliconFlow');
@@ -3881,6 +3887,9 @@ class ProviderConfig {
 
   static String _defaultBase(String key) {
     final k = key.toLowerCase();
+    if (k.contains('chatgpt2api')) return 'http://127.0.0.1:8000/v1';
+    if (k.contains('grok2api')) return 'http://127.0.0.1:8000/v1';
+    if (k.contains('flow2api')) return 'http://127.0.0.1:8000/v1';
     if (k.contains('tensdaq')) return 'https://tensdaq-api.x-aio.com/v1';
     if (k.contains('kelivoin')) return 'https://text.pollinations.ai/openai';
     if (k.contains('openrouter')) return 'https://openrouter.ai/api/v1';
@@ -3911,6 +3920,9 @@ class ProviderConfig {
   static ProviderConfig defaultsFor(String key, {String? displayName}) {
     bool defaultEnabled(String k) {
       final s = k.toLowerCase();
+      if (s.contains('chatgpt2api')) return true;
+      if (s.contains('grok2api')) return true;
+      if (s.contains('flow2api')) return true;
       if (s.contains('tensdaq')) return true;
       if (s.contains('openai')) return true;
       if (s.contains('gemini') || s.contains('google')) return true;
@@ -4040,6 +4052,135 @@ class ProviderConfig {
                 'input': ['text'],
                 'output': ['text'],
                 'abilities': ['tool', 'reasoning'],
+              },
+            },
+            proxyEnabled: false,
+            proxyHost: '',
+            proxyPort: '8080',
+            proxyUsername: '',
+            proxyPassword: '',
+            multiKeyEnabled: false,
+            apiKeys: const [],
+            keyManagement: const KeyManagementConfig(),
+            aihubmixAppCodeEnabled: false,
+          );
+        }
+        // Special-case ChatGPT2API: image-focused OpenAI-compatible gateway
+        if (lowerKey.contains('chatgpt2api')) {
+          return ProviderConfig(
+            id: key,
+            enabled: defaultEnabled(key),
+            name: displayName ?? key,
+            apiKey: '',
+            baseUrl: _defaultBase(key),
+            providerType: ProviderKind.openai,
+            chatPath: '/chat/completions',
+            useResponseApi: false,
+            models: const ['gpt-image-1', 'gpt-image-2'],
+            modelOverrides: const {
+              'gpt-image-1': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
+              },
+              'gpt-image-2': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
+              },
+            },
+            proxyEnabled: false,
+            proxyHost: '',
+            proxyPort: '8080',
+            proxyUsername: '',
+            proxyPassword: '',
+            multiKeyEnabled: false,
+            apiKeys: const [],
+            keyManagement: const KeyManagementConfig(),
+            aihubmixAppCodeEnabled: false,
+          );
+        }
+        // Special-case Grok2API: image-focused OpenAI-compatible gateway
+        if (lowerKey.contains('grok2api')) {
+          return ProviderConfig(
+            id: key,
+            enabled: defaultEnabled(key),
+            name: displayName ?? key,
+            apiKey: '',
+            baseUrl: _defaultBase(key),
+            providerType: ProviderKind.openai,
+            chatPath: '/chat/completions',
+            useResponseApi: false,
+            models: const [
+              'grok-imagine-image-lite',
+              'grok-imagine-image',
+              'grok-imagine-image-pro',
+              'grok-imagine-image-edit',
+            ],
+            modelOverrides: const {
+              'grok-imagine-image-lite': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
+              },
+              'grok-imagine-image': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
+              },
+              'grok-imagine-image-pro': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
+              },
+              'grok-imagine-image-edit': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
+              },
+            },
+            proxyEnabled: false,
+            proxyHost: '',
+            proxyPort: '8080',
+            proxyUsername: '',
+            proxyPassword: '',
+            multiKeyEnabled: false,
+            apiKeys: const [],
+            keyManagement: const KeyManagementConfig(),
+            aihubmixAppCodeEnabled: false,
+          );
+        }
+        // Special-case Flow2API: image-focused OpenAI-compatible gateway
+        if (lowerKey.contains('flow2api')) {
+          return ProviderConfig(
+            id: key,
+            enabled: defaultEnabled(key),
+            name: displayName ?? key,
+            apiKey: '',
+            baseUrl: _defaultBase(key),
+            providerType: ProviderKind.openai,
+            chatPath: '/chat/completions',
+            useResponseApi: false,
+            models: const [
+              'gemini-3.1-flash-image-landscape',
+              'gemini-3.1-flash-image-portrait',
+              'gemini-3.0-pro-image-square',
+            ],
+            modelOverrides: const {
+              'gemini-3.1-flash-image-landscape': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
+              },
+              'gemini-3.1-flash-image-portrait': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
+              },
+              'gemini-3.0-pro-image-square': {
+                'type': 'chat',
+                'input': ['text', 'image'],
+                'output': ['image'],
               },
             },
             proxyEnabled: false,

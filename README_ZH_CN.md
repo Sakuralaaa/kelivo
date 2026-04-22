@@ -64,6 +64,16 @@
 - ✅ macOS
 - ✅ Linux
 
+## 🖼️ 生图 API 快速接入（OpenAI 兼容）
+
+新增了 3 个内置生图 Provider 预设，可直接在 Provider 页面启用并填写 API Key：
+
+- `ChatGPT2API`（默认 `http://127.0.0.1:8000/v1`）
+- `Grok2API`（默认 `http://127.0.0.1:8000/v1`）
+- `Flow2API`（默认 `http://127.0.0.1:8000/v1`）
+
+以上预设默认带有图片模型示例，走 OpenAI 兼容 `/chat/completions` 链路，适配文生图 / 图生图场景。若你的服务地址不是本机端口，请在 Provider 详情页修改 `API Base Url`。
+
 ## 🤝 贡献指南
 
 欢迎提交 Pull Request 或创建 Issue！
