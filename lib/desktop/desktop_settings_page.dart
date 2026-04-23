@@ -51,6 +51,7 @@ import 'setting/backup_pane.dart';
 import 'setting/hotkeys_pane.dart';
 import 'setting/network_proxy_pane.dart';
 import 'setting/about_pane.dart';
+import 'setting/image_router_pane.dart';
 import 'package:system_fonts/system_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -82,6 +83,7 @@ enum _SettingsMenuItem {
   display,
   assistant,
   providers,
+  imageRouter,
   defaultModel,
   search,
   mcp,
@@ -98,6 +100,22 @@ enum _SettingsMenuItem {
 class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
   _SettingsMenuItem _selected = _SettingsMenuItem.display;
 
+  bool _menuHiddenInPureImageMode(_SettingsMenuItem item) {
+    switch (item) {
+      case _SettingsMenuItem.search:
+      case _SettingsMenuItem.mcp:
+      case _SettingsMenuItem.quickPhrases:
+      case _SettingsMenuItem.worldBook:
+      case _SettingsMenuItem.tts:
+      case _SettingsMenuItem.networkProxy:
+      case _SettingsMenuItem.backup:
+      case _SettingsMenuItem.hotkeys:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +129,11 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final pureImageMode = context.watch<SettingsProvider>().pureImageMode;
+    final effectiveSelected =
+        pureImageMode && _menuHiddenInPureImageMode(_selected)
+        ? _SettingsMenuItem.providers
+        : _selected;
 
     const double menuWidth = 250;
     final topBar = SizedBox(
@@ -144,7 +167,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
               children: [
                 _SettingsMenu(
                   width: menuWidth,
-                  selected: _selected,
+                  selected: effectiveSelected,
                   onSelect: (it) => setState(() => _selected = it),
                 ),
                 VerticalDivider(
@@ -157,7 +180,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                     duration: const Duration(milliseconds: 200),
                     switchInCurve: Curves.easeOutCubic,
                     child: () {
-                      switch (_selected) {
+                      switch (effectiveSelected) {
                         case _SettingsMenuItem.display:
                           return const _DisplaySettingsBody(
                             key: ValueKey('display'),
@@ -170,6 +193,10 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                           return _DesktopProvidersBody(
                             key: const ValueKey('providers'),
                             initialSelectedKey: widget.initialProviderKey,
+                          );
+                        case _SettingsMenuItem.imageRouter:
+                          return const DesktopImageRouterPane(
+                            key: ValueKey('image_router'),
                           );
                         case _SettingsMenuItem.defaultModel:
                           return const DesktopDefaultModelPane(
@@ -237,6 +264,7 @@ class _SettingsMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final pureImageMode = context.watch<SettingsProvider>().pureImageMode;
     final items = [
       (
         _SettingsMenuItem.display,
@@ -247,6 +275,11 @@ class _SettingsMenu extends StatelessWidget {
         _SettingsMenuItem.providers,
         lucide.Lucide.Boxes,
         l10n.settingsPageProviders,
+      ),
+      (
+        _SettingsMenuItem.imageRouter,
+        lucide.Lucide.Zap,
+        l10n.modelDetailSheetImageMode,
       ),
       (
         _SettingsMenuItem.assistant,
@@ -297,6 +330,26 @@ class _SettingsMenu extends StatelessWidget {
         l10n.settingsPageAbout,
       ),
     ];
+    final visibleItems = pureImageMode
+        ? items
+              .where((item) {
+                final type = item.$1;
+                switch (type) {
+                  case _SettingsMenuItem.search:
+                  case _SettingsMenuItem.mcp:
+                  case _SettingsMenuItem.quickPhrases:
+                  case _SettingsMenuItem.worldBook:
+                  case _SettingsMenuItem.tts:
+                  case _SettingsMenuItem.networkProxy:
+                  case _SettingsMenuItem.backup:
+                  case _SettingsMenuItem.hotkeys:
+                    return false;
+                  default:
+                    return true;
+                }
+              })
+              .toList(growable: false)
+        : items;
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
@@ -304,19 +357,19 @@ class _SettingsMenu extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         children: [
-          for (int i = 0; i < items.length; i++) ...[
+          for (int i = 0; i < visibleItems.length; i++) ...[
             _MenuItem(
-              icon: items[i].$2,
-              label: items[i].$3,
-              selected: selected == items[i].$1,
-              onTap: () => onSelect(items[i].$1),
+              icon: visibleItems[i].$2,
+              label: visibleItems[i].$3,
+              selected: selected == visibleItems[i].$1,
+              onTap: () => onSelect(visibleItems[i].$1),
               color: cs.onSurface.withValues(alpha: 0.9),
               selectedColor: cs.primary,
               hoverBg: isDark
                   ? Colors.white.withValues(alpha: 0.06)
                   : Colors.black.withValues(alpha: 0.04),
             ),
-            if (i != items.length - 1) const SizedBox(height: 8),
+            if (i != visibleItems.length - 1) const SizedBox(height: 8),
           ],
         ],
       ),

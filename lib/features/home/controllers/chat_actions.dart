@@ -138,6 +138,9 @@ class ChatActions {
     return messageGenerationService.isReasoningEnabled(budget);
   }
 
+  bool _isImageGenerationRequest(String text) =>
+      text.contains('[image_generation_request]');
+
   bool _supportsAudioAttachmentsForProvider(
     SettingsProvider settings, {
     required String providerKey,
@@ -279,19 +282,30 @@ class ChatActions {
       settings,
       assistant,
     );
+    String? providerKey = modelConfig.providerKey;
+    String? modelId = modelConfig.modelId;
+    if (settings.pureImageMode && _isImageGenerationRequest(content)) {
+      final routed = await settings.resolveImageRouterDecision(
+        requestText: content,
+        preferredProviderKey: providerKey,
+        preferredModelId: modelId,
+      );
+      providerKey = routed?.providerKey ?? providerKey;
+      modelId = routed?.modelId ?? modelId;
+    }
 
-    if (modelConfig.providerKey == null || modelConfig.modelId == null) {
+    if (providerKey == null || modelId == null) {
       return ChatActionResult.noModel();
     }
-    final providerKey = modelConfig.providerKey!;
-    final modelId = modelConfig.modelId!;
+    final providerKeyFinal = providerKey;
+    final modelIdFinal = modelId;
 
     if (_hasUnsupportedAudioAttachments(
       messages: _messages,
       conversation: conversation,
       settings: settings,
-      providerKey: providerKey,
-      modelId: modelId,
+      providerKey: providerKeyFinal,
+      modelId: modelIdFinal,
       pendingInput: input,
     )) {
       return ChatActionResult.error('audio_attachment_unsupported');
@@ -312,8 +326,8 @@ class ChatActions {
     final assistantMessage = await messageGenerationService
         .createAssistantPlaceholder(
           conversationId: conversation.id,
-          modelId: modelId,
-          providerKey: providerKey,
+          modelId: modelIdFinal,
+          providerKey: providerKeyFinal,
         );
 
     // Pre-create streaming notifier BEFORE adding message to list
@@ -325,7 +339,7 @@ class ChatActions {
 
     // Reset tool parts and initialize reasoning
     streamController.toolParts.remove(assistantMessage.id);
-    final supportsReasoning = _isReasoningModel(providerKey, modelId);
+    final supportsReasoning = _isReasoningModel(providerKeyFinal, modelIdFinal);
     final enableReasoning =
         supportsReasoning &&
         _isReasoningEnabled(
@@ -349,8 +363,8 @@ class ChatActions {
             settings: settings,
             assistant: assistant,
             assistantId: assistantId,
-            providerKey: providerKey,
-            modelId: modelId,
+            providerKey: providerKeyFinal,
+            modelId: modelIdFinal,
             approvalService: approvalService,
           );
 
@@ -359,8 +373,8 @@ class ChatActions {
         input: input,
         lastUserImagePaths: prepared.lastUserImagePaths,
         settings: settings,
-        providerKey: providerKey,
-        modelId: modelId,
+        providerKey: providerKeyFinal,
+        modelId: modelIdFinal,
       );
 
       // Execute generation
@@ -368,8 +382,8 @@ class ChatActions {
         assistantMessage: assistantMessage,
         prepared: prepared,
         userImagePaths: userImagePaths,
-        providerKey: providerKey,
-        modelId: modelId,
+        providerKey: providerKeyFinal,
+        modelId: modelIdFinal,
         assistant: assistant,
         settings: settings,
         supportsReasoning: supportsReasoning,
@@ -436,12 +450,33 @@ class ChatActions {
       settings,
       assistant,
     );
+    String? providerKey = modelConfig.providerKey;
+    String? modelId = modelConfig.modelId;
+    String imageRequestProbe = message.content;
+    if (message.role != 'user') {
+      for (int i = idx; i >= 0; i--) {
+        if (_messages[i].role == 'user') {
+          imageRequestProbe = _messages[i].content;
+          break;
+        }
+      }
+    }
+    if (settings.pureImageMode &&
+        _isImageGenerationRequest(imageRequestProbe)) {
+      final routed = await settings.resolveImageRouterDecision(
+        requestText: imageRequestProbe,
+        preferredProviderKey: providerKey,
+        preferredModelId: modelId,
+      );
+      providerKey = routed?.providerKey ?? providerKey;
+      modelId = routed?.modelId ?? modelId;
+    }
 
-    if (modelConfig.providerKey == null || modelConfig.modelId == null) {
+    if (providerKey == null || modelId == null) {
       return ChatActionResult.noModel();
     }
-    final providerKey = modelConfig.providerKey!;
-    final modelId = modelConfig.modelId!;
+    final providerKeyFinal = providerKey;
+    final modelIdFinal = modelId;
 
     final projectedMessages = ChatActions.projectMessagesForRegenerationContext(
       messages: _messages,
@@ -452,8 +487,8 @@ class ChatActions {
       messages: projectedMessages,
       conversation: conversation,
       settings: settings,
-      providerKey: providerKey,
-      modelId: modelId,
+      providerKey: providerKeyFinal,
+      modelId: modelIdFinal,
     )) {
       return ChatActionResult.error('audio_attachment_unsupported');
     }
@@ -462,8 +497,8 @@ class ChatActions {
     final assistantMessage = await messageGenerationService
         .createAssistantPlaceholder(
           conversationId: conversation.id,
-          modelId: modelId,
-          providerKey: providerKey,
+          modelId: modelIdFinal,
+          providerKey: providerKeyFinal,
           groupId: versioning.targetGroupId,
           version: versioning.nextVersion,
         );
@@ -494,7 +529,7 @@ class ChatActions {
     _setConversationLoading(conversation.id, true);
 
     // Initialize reasoning
-    final supportsReasoning = _isReasoningModel(providerKey, modelId);
+    final supportsReasoning = _isReasoningModel(providerKeyFinal, modelIdFinal);
     final enableReasoning =
         supportsReasoning &&
         _isReasoningEnabled(
@@ -514,8 +549,8 @@ class ChatActions {
           settings: settings,
           assistant: assistant,
           assistantId: assistantId,
-          providerKey: providerKey,
-          modelId: modelId,
+          providerKey: providerKeyFinal,
+          modelId: modelIdFinal,
           approvalService: regenApprovalService,
         );
 
@@ -524,8 +559,8 @@ class ChatActions {
       input: null,
       lastUserImagePaths: prepared.lastUserImagePaths,
       settings: settings,
-      providerKey: providerKey,
-      modelId: modelId,
+      providerKey: providerKeyFinal,
+      modelId: modelIdFinal,
     );
 
     // Execute generation
@@ -533,8 +568,8 @@ class ChatActions {
       assistantMessage: assistantMessage,
       prepared: prepared,
       userImagePaths: userImagePaths,
-      providerKey: providerKey,
-      modelId: modelId,
+      providerKey: providerKeyFinal,
+      modelId: modelIdFinal,
       assistant: assistant,
       settings: settings,
       supportsReasoning: supportsReasoning,

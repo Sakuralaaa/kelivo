@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:socks5_proxy/socks_client.dart' as socks;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -177,6 +178,12 @@ class SettingsProvider extends ChangeNotifier {
   static const String _displayUsePureBackgroundKey =
       'display_use_pure_background_v1';
   static const String _displayPureImageModeKey = 'display_pure_image_mode_v1';
+  static const String _imageRouterEnabledKey = 'image_router_enabled_v1';
+  static const String _imageRouterStrategyKey = 'image_router_strategy_v1';
+  static const String _imageRouterChannelsKey = 'image_router_channels_v1';
+  static const String _imageRouterRoundRobinCursorKey =
+      'image_router_rr_cursor_v1';
+  static const String _imageRouterLogsKey = 'image_router_logs_v1';
   static const String _displayChatMessageBackgroundStyleKey =
       'display_chat_message_background_style_v1';
   // Network request logging (debug)
@@ -317,6 +324,18 @@ class SettingsProvider extends ChangeNotifier {
   /// existing conversation data or provider configurations.
   bool _pureImageMode = true;
   bool get pureImageMode => _pureImageMode;
+  bool _imageRouterEnabled = true;
+  bool get imageRouterEnabled => _imageRouterEnabled;
+  ImageRouterStrategy _imageRouterStrategy = ImageRouterStrategy.weighted;
+  ImageRouterStrategy get imageRouterStrategy => _imageRouterStrategy;
+  int _imageRouterRoundRobinCursor = 0;
+  int get imageRouterRoundRobinCursor => _imageRouterRoundRobinCursor;
+  Map<String, ImageRouterChannelConfig> _imageRouterChannels =
+      <String, ImageRouterChannelConfig>{};
+  Map<String, ImageRouterChannelConfig> get imageRouterChannels =>
+      Map.unmodifiable(_imageRouterChannels);
+  List<String> _imageRouterLogs = <String>[];
+  List<String> get imageRouterLogs => List.unmodifiable(_imageRouterLogs);
 
   // Desktop UI persisted state
   double _desktopSidebarWidth = 240;
@@ -856,6 +875,39 @@ class SettingsProvider extends ChangeNotifier {
     } else {
       _pureImageMode = pureImageModePref;
     }
+    _imageRouterEnabled = prefs.getBool(_imageRouterEnabledKey) ?? true;
+    final imageRouterStrategyRaw =
+        prefs.getString(_imageRouterStrategyKey) ?? 'weighted';
+    _imageRouterStrategy = ImageRouterStrategy.values.firstWhere(
+      (e) => e.name == imageRouterStrategyRaw,
+      orElse: () => ImageRouterStrategy.weighted,
+    );
+    _imageRouterRoundRobinCursor =
+        prefs.getInt(_imageRouterRoundRobinCursorKey) ?? 0;
+    final imageRouterChannelsRaw = prefs.getString(_imageRouterChannelsKey);
+    if (imageRouterChannelsRaw != null && imageRouterChannelsRaw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(imageRouterChannelsRaw);
+        if (decoded is Map) {
+          _imageRouterChannels = decoded.map<String, ImageRouterChannelConfig>((
+            key,
+            value,
+          ) {
+            final map = value is Map
+                ? value.cast<String, dynamic>()
+                : <String, dynamic>{};
+            return MapEntry(
+              key.toString(),
+              ImageRouterChannelConfig.fromJson(map),
+            );
+          });
+        }
+      } catch (_) {
+        _imageRouterChannels = <String, ImageRouterChannelConfig>{};
+      }
+    }
+    _imageRouterLogs = prefs.getStringList(_imageRouterLogsKey) ?? <String>[];
+    _ensureImageRouterChannelDefaults();
     // display: markdown/math rendering
     _enableDollarLatex = prefs.getBool(_displayEnableDollarLatexKey) ?? true;
     _enableMathRendering =
@@ -1945,6 +1997,259 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_displayPureImageModeKey, v);
+  }
+
+  bool _looksLikeImageRequest(String text) =>
+      text.contains('[image_generation_request]');
+
+  bool _looksLikeImageModelId(String modelId) {
+    final id = modelId.toLowerCase();
+    return id.contains('image') ||
+        id.contains('imagine') ||
+        id.contains('flux') ||
+        id.contains('sdxl');
+  }
+
+  bool _modelOutputsImage(ProviderConfig cfg, String modelId) {
+    final rawOv = cfg.modelOverrides[modelId];
+    final ov = rawOv is Map ? rawOv.cast<String, dynamic>() : null;
+    final output = ov?['output'];
+    if (output is List) {
+      for (final m in output) {
+        if (m.toString().toLowerCase() == 'image') return true;
+      }
+      return false;
+    }
+    return _looksLikeImageModelId(modelId);
+  }
+
+  List<String> _imageCapableModelIdsFor(String providerKey) {
+    final cfg = getProviderConfig(providerKey);
+    final ids = <String>{...cfg.models, ...cfg.modelOverrides.keys};
+    if (ids.isEmpty) return const <String>[];
+    return ids.where((id) => _modelOutputsImage(cfg, id)).toList(growable: false);
+  }
+
+  String? _pickImageModelForProvider(
+    String providerKey, {
+    String? preferredModelId,
+  }) {
+    final models = _imageCapableModelIdsFor(providerKey);
+    if (models.isEmpty) return null;
+    if (preferredModelId != null && models.contains(preferredModelId)) {
+      return preferredModelId;
+    }
+    return models.first;
+  }
+
+  bool _isProviderAvailableForImageRouting(
+    String providerKey,
+    ImageRouterChannelConfig channel,
+  ) {
+    if (!channel.enabled) return false;
+    final cfg = getProviderConfig(providerKey);
+    if (!cfg.enabled) return false;
+    return _pickImageModelForProvider(providerKey) != null;
+  }
+
+  void _ensureImageRouterChannelDefaults() {
+    const defaults = <String, int>{
+      'ChatGPT2API': 4,
+      'Grok2API': 3,
+      'Flow2API': 2,
+    };
+    bool changed = false;
+    for (final entry in defaults.entries) {
+      final existing = _imageRouterChannels[entry.key];
+      if (existing == null) {
+        _imageRouterChannels[entry.key] = ImageRouterChannelConfig(
+          enabled: true,
+          weight: entry.value,
+          health: ImageRouterChannelHealth.notTested,
+        );
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    unawaited(_persistImageRouterSettings());
+  }
+
+  Future<void> _persistImageRouterSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_imageRouterEnabledKey, _imageRouterEnabled);
+    await prefs.setString(_imageRouterStrategyKey, _imageRouterStrategy.name);
+    await prefs.setInt(
+      _imageRouterRoundRobinCursorKey,
+      _imageRouterRoundRobinCursor,
+    );
+    await prefs.setString(
+      _imageRouterChannelsKey,
+      jsonEncode(
+        _imageRouterChannels.map((k, v) => MapEntry(k, v.toJson())),
+      ),
+    );
+    await prefs.setStringList(_imageRouterLogsKey, _imageRouterLogs);
+  }
+
+  Future<void> _appendImageRouterLog(String message) async {
+    final stamp = DateTime.now().toIso8601String();
+    _imageRouterLogs = <String>['[$stamp] $message', ..._imageRouterLogs];
+    if (_imageRouterLogs.length > 120) {
+      _imageRouterLogs = _imageRouterLogs.sublist(0, 120);
+    }
+    await _persistImageRouterSettings();
+    notifyListeners();
+  }
+
+  Future<void> clearImageRouterLogs() async {
+    if (_imageRouterLogs.isEmpty) return;
+    _imageRouterLogs = <String>[];
+    await _persistImageRouterSettings();
+    notifyListeners();
+  }
+
+  Future<void> setImageRouterEnabled(bool v) async {
+    if (_imageRouterEnabled == v) return;
+    _imageRouterEnabled = v;
+    await _persistImageRouterSettings();
+    notifyListeners();
+  }
+
+  Future<void> setImageRouterStrategy(ImageRouterStrategy strategy) async {
+    if (_imageRouterStrategy == strategy) return;
+    _imageRouterStrategy = strategy;
+    await _persistImageRouterSettings();
+    notifyListeners();
+  }
+
+  Future<void> setImageRouterChannelEnabled(String providerKey, bool enabled) async {
+    final old =
+        _imageRouterChannels[providerKey] ?? const ImageRouterChannelConfig();
+    if (old.enabled == enabled) return;
+    _imageRouterChannels[providerKey] = old.copyWith(enabled: enabled);
+    await _persistImageRouterSettings();
+    notifyListeners();
+  }
+
+  Future<void> setImageRouterChannelWeight(String providerKey, int weight) async {
+    final normalized = weight.clamp(1, 100);
+    final old =
+        _imageRouterChannels[providerKey] ?? const ImageRouterChannelConfig();
+    if (old.weight == normalized) return;
+    _imageRouterChannels[providerKey] = old.copyWith(weight: normalized);
+    await _persistImageRouterSettings();
+    notifyListeners();
+  }
+
+  Future<void> runImageRouterHealthCheck() async {
+    final keys = <String>{
+      ..._imageRouterChannels.keys,
+      'ChatGPT2API',
+      'Grok2API',
+      'Flow2API',
+    };
+    for (final providerKey in keys) {
+      final channel =
+          _imageRouterChannels[providerKey] ?? const ImageRouterChannelConfig();
+      ImageRouterChannelHealth health;
+      if (!channel.enabled || !getProviderConfig(providerKey).enabled) {
+        health = ImageRouterChannelHealth.disabled;
+      } else if (_pickImageModelForProvider(providerKey) == null) {
+        health = ImageRouterChannelHealth.failed;
+      } else {
+        health = ImageRouterChannelHealth.connected;
+      }
+      _imageRouterChannels[providerKey] = channel.copyWith(
+        health: health,
+        lastCheckedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+    }
+    await _appendImageRouterLog('health_check');
+  }
+
+  Future<ImageRouterDecision?> resolveImageRouterDecision({
+    required String requestText,
+    String? preferredProviderKey,
+    String? preferredModelId,
+  }) async {
+    if (!_looksLikeImageRequest(requestText)) {
+      if (preferredProviderKey == null || preferredModelId == null) return null;
+      return ImageRouterDecision(
+        providerKey: preferredProviderKey,
+        modelId: preferredModelId,
+      );
+    }
+    if (!_imageRouterEnabled) {
+      if (preferredProviderKey == null || preferredModelId == null) return null;
+      await _appendImageRouterLog(
+        'router_disabled -> $preferredProviderKey/$preferredModelId',
+      );
+      return ImageRouterDecision(
+        providerKey: preferredProviderKey,
+        modelId: preferredModelId,
+      );
+    }
+    _ensureImageRouterChannelDefaults();
+    final candidates = <({String providerKey, ImageRouterChannelConfig channel})>[
+      for (final entry in _imageRouterChannels.entries)
+        if (_isProviderAvailableForImageRouting(entry.key, entry.value))
+          (providerKey: entry.key, channel: entry.value),
+    ];
+    if (candidates.isEmpty) {
+      if (preferredProviderKey == null) return null;
+      final fallbackModel = preferredModelId ??
+          _pickImageModelForProvider(preferredProviderKey);
+      if (fallbackModel == null) return null;
+      await _appendImageRouterLog(
+        'router_empty_fallback -> $preferredProviderKey/$fallbackModel',
+      );
+      return ImageRouterDecision(
+        providerKey: preferredProviderKey,
+        modelId: fallbackModel,
+      );
+    }
+
+    ({String providerKey, ImageRouterChannelConfig channel}) picked;
+    switch (_imageRouterStrategy) {
+      case ImageRouterStrategy.priority:
+        final sorted = List<({String providerKey, ImageRouterChannelConfig channel})>.of(
+          candidates,
+        )..sort((a, b) => b.channel.weight.compareTo(a.channel.weight));
+        picked = sorted.first;
+        break;
+      case ImageRouterStrategy.roundRobin:
+        final idx = _imageRouterRoundRobinCursor % candidates.length;
+        picked = candidates[idx];
+        _imageRouterRoundRobinCursor = (_imageRouterRoundRobinCursor + 1) %
+            math.max(1, candidates.length);
+        await _persistImageRouterSettings();
+        break;
+      case ImageRouterStrategy.weighted:
+        final total = candidates.fold<int>(
+          0,
+          (sum, e) => sum + e.channel.weight.clamp(1, 100),
+        );
+        var point = math.Random().nextInt(math.max(1, total));
+        picked = candidates.first;
+        for (final c in candidates) {
+          point -= c.channel.weight.clamp(1, 100);
+          if (point < 0) {
+            picked = c;
+            break;
+          }
+        }
+        break;
+    }
+
+    final modelId = _pickImageModelForProvider(
+      picked.providerKey,
+      preferredModelId: preferredModelId,
+    );
+    if (modelId == null) return null;
+    await _appendImageRouterLog(
+      '${_imageRouterStrategy.name} -> ${picked.providerKey}/$modelId',
+    );
+    return ImageRouterDecision(providerKey: picked.providerKey, modelId: modelId);
   }
 
   // Display: chat message background style (affects user/assistant bubbles)
@@ -3463,6 +3768,14 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     copy._desktopShowTray = _desktopShowTray;
     copy._desktopMinimizeToTrayOnClose = _desktopMinimizeToTrayOnClose;
     copy._usePureBackground = _usePureBackground;
+    copy._pureImageMode = _pureImageMode;
+    copy._imageRouterEnabled = _imageRouterEnabled;
+    copy._imageRouterStrategy = _imageRouterStrategy;
+    copy._imageRouterRoundRobinCursor = _imageRouterRoundRobinCursor;
+    copy._imageRouterChannels = Map<String, ImageRouterChannelConfig>.from(
+      _imageRouterChannels,
+    );
+    copy._imageRouterLogs = List<String>.from(_imageRouterLogs);
     copy._chatMessageBackgroundStyle = _chatMessageBackgroundStyle;
     return copy;
   }
@@ -3680,6 +3993,63 @@ enum ProviderKind { openai, google, claude }
 enum ChatMessageBackgroundStyle { defaultStyle, frosted, solid }
 
 enum AndroidBackgroundChatMode { off, on, onNotify }
+
+enum ImageRouterStrategy { weighted, roundRobin, priority }
+
+enum ImageRouterChannelHealth { notTested, connected, failed, disabled }
+
+class ImageRouterDecision {
+  const ImageRouterDecision({required this.providerKey, required this.modelId});
+  final String providerKey;
+  final String modelId;
+}
+
+class ImageRouterChannelConfig {
+  const ImageRouterChannelConfig({
+    this.enabled = true,
+    this.weight = 1,
+    this.health = ImageRouterChannelHealth.notTested,
+    this.lastCheckedAt,
+  });
+
+  final bool enabled;
+  final int weight;
+  final ImageRouterChannelHealth health;
+  final int? lastCheckedAt;
+
+  ImageRouterChannelConfig copyWith({
+    bool? enabled,
+    int? weight,
+    ImageRouterChannelHealth? health,
+    int? lastCheckedAt,
+  }) => ImageRouterChannelConfig(
+    enabled: enabled ?? this.enabled,
+    weight: weight ?? this.weight,
+    health: health ?? this.health,
+    lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'enabled': enabled,
+    'weight': weight,
+    'health': health.name,
+    'lastCheckedAt': lastCheckedAt,
+  };
+
+  factory ImageRouterChannelConfig.fromJson(Map<String, dynamic> json) {
+    final healthRaw = (json['health'] as String?) ?? 'notTested';
+    final health = ImageRouterChannelHealth.values.firstWhere(
+      (e) => e.name == healthRaw,
+      orElse: () => ImageRouterChannelHealth.notTested,
+    );
+    return ImageRouterChannelConfig(
+      enabled: json['enabled'] as bool? ?? true,
+      weight: (json['weight'] as int? ?? 1).clamp(1, 100),
+      health: health,
+      lastCheckedAt: json['lastCheckedAt'] as int?,
+    );
+  }
+}
 
 class ProviderConfig {
   final String id;
