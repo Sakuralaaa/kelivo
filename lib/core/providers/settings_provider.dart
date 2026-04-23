@@ -2055,6 +2055,8 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   void _ensureImageRouterChannelDefaults() {
+    // Default image gateway priority: ChatGPT2API > Grok2API > Flow2API.
+    // The weights are relative probabilities for weighted routing.
     const defaults = <String, int>{
       'ChatGPT2API': 4,
       'Grok2API': 3,
@@ -2229,7 +2231,7 @@ class SettingsProvider extends ChangeNotifier {
       case ImageRouterStrategy.weighted:
         final total = candidates.fold<int>(
           0,
-          (sum, e) => sum + e.channel.weight.clamp(1, 100),
+          (sum, e) => sum + (e.channel.weight.clamp(1, 100) as int),
         );
         var point = _imageRouterRandom.nextInt(math.max(1, total));
         picked = candidates.first;

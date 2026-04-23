@@ -141,6 +141,15 @@ class ChatActions {
   bool _isImageGenerationRequest(String text) =>
       text.contains('[image_generation_request]');
 
+  String _findPrecedingUserMessageContent(int startIndex, String fallback) {
+    for (int i = startIndex; i >= 0; i--) {
+      if (_messages[i].role == 'user') {
+        return _messages[i].content;
+      }
+    }
+    return fallback;
+  }
+
   bool _supportsAudioAttachmentsForProvider(
     SettingsProvider settings, {
     required String providerKey,
@@ -452,15 +461,9 @@ class ChatActions {
     );
     String? providerKey = modelConfig.providerKey;
     String? modelId = modelConfig.modelId;
-    String imageRequestProbe = message.content;
-    if (message.role != 'user') {
-      for (int i = idx; i >= 0; i--) {
-        if (_messages[i].role == 'user') {
-          imageRequestProbe = _messages[i].content;
-          break;
-        }
-      }
-    }
+    final imageRequestProbe = message.role == 'user'
+        ? message.content
+        : _findPrecedingUserMessageContent(idx, message.content);
     if (settings.pureImageMode &&
         _isImageGenerationRequest(imageRequestProbe)) {
       final routed = await settings.resolveImageRouterDecision(

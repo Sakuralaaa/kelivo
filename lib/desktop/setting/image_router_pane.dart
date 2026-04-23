@@ -8,6 +8,8 @@ import '../../shared/widgets/ios_switch.dart';
 
 class DesktopImageRouterPane extends StatelessWidget {
   const DesktopImageRouterPane({super.key});
+  // Keep one small viewport worth of logs visible while preserving full history
+  // in SettingsProvider (_maxImageRouterLogs).
   static const int _maxDisplayedLogs = 24;
 
   String _strategyLabel(BuildContext context, ImageRouterStrategy strategy) {
