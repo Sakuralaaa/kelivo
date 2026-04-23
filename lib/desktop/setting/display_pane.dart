@@ -25,6 +25,8 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _RowDivider(),
                   _ToggleRowPureBackground(),
                   _RowDivider(),
+                  _ToggleRowPureImageMode(),
+                  _RowDivider(),
                   _ChatMessageBackgroundRow(),
                   _RowDivider(),
                   _TopicPositionRow(),
@@ -469,6 +471,20 @@ class _ToggleRowPureBackground extends StatelessWidget {
       value: sp.usePureBackground,
       onChanged: (v) =>
           context.read<SettingsProvider>().setUsePureBackground(v),
+    );
+  }
+}
+
+class _ToggleRowPureImageMode extends StatelessWidget {
+  const _ToggleRowPureImageMode();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.modelDetailSheetImageMode,
+      value: sp.pureImageMode,
+      onChanged: (v) => context.read<SettingsProvider>().setPureImageMode(v),
     );
   }
 }
