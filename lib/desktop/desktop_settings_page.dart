@@ -97,24 +97,24 @@ enum _SettingsMenuItem {
   about,
 }
 
+bool _isMenuHiddenInPureImageMode(_SettingsMenuItem item) {
+  switch (item) {
+    case _SettingsMenuItem.search:
+    case _SettingsMenuItem.mcp:
+    case _SettingsMenuItem.quickPhrases:
+    case _SettingsMenuItem.worldBook:
+    case _SettingsMenuItem.tts:
+    case _SettingsMenuItem.networkProxy:
+    case _SettingsMenuItem.backup:
+    case _SettingsMenuItem.hotkeys:
+      return true;
+    default:
+      return false;
+  }
+}
+
 class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
   _SettingsMenuItem _selected = _SettingsMenuItem.display;
-
-  bool _menuHiddenInPureImageMode(_SettingsMenuItem item) {
-    switch (item) {
-      case _SettingsMenuItem.search:
-      case _SettingsMenuItem.mcp:
-      case _SettingsMenuItem.quickPhrases:
-      case _SettingsMenuItem.worldBook:
-      case _SettingsMenuItem.tts:
-      case _SettingsMenuItem.networkProxy:
-      case _SettingsMenuItem.backup:
-      case _SettingsMenuItem.hotkeys:
-        return true;
-      default:
-        return false;
-    }
-  }
 
   @override
   void initState() {
@@ -131,7 +131,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
     final l10n = AppLocalizations.of(context)!;
     final pureImageMode = context.watch<SettingsProvider>().pureImageMode;
     final effectiveSelected =
-        pureImageMode && _menuHiddenInPureImageMode(_selected)
+        pureImageMode && _isMenuHiddenInPureImageMode(_selected)
         ? _SettingsMenuItem.providers
         : _selected;
 
@@ -332,22 +332,7 @@ class _SettingsMenu extends StatelessWidget {
     ];
     final visibleItems = pureImageMode
         ? items
-              .where((item) {
-                final type = item.$1;
-                switch (type) {
-                  case _SettingsMenuItem.search:
-                  case _SettingsMenuItem.mcp:
-                  case _SettingsMenuItem.quickPhrases:
-                  case _SettingsMenuItem.worldBook:
-                  case _SettingsMenuItem.tts:
-                  case _SettingsMenuItem.networkProxy:
-                  case _SettingsMenuItem.backup:
-                  case _SettingsMenuItem.hotkeys:
-                    return false;
-                  default:
-                    return true;
-                }
-              })
+              .where((item) => !_isMenuHiddenInPureImageMode(item.$1))
               .toList(growable: false)
         : items;
     final cs = Theme.of(context).colorScheme;

@@ -31,6 +31,8 @@ enum DesktopSendShortcut { enter, ctrlEnter }
 enum _MigrationResult { noChange, applied, failed }
 
 class SettingsProvider extends ChangeNotifier {
+  static const int _maxImageRouterLogs = 120;
+  static final math.Random _imageRouterRandom = math.Random();
   static const String _providersOrderKey = 'providers_order_v1';
   static const String _providerGroupsKey =
       'provider_groups_v1'; // [{id,name,createdAt}]
@@ -2094,8 +2096,8 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> _appendImageRouterLog(String message) async {
     final stamp = DateTime.now().toIso8601String();
     _imageRouterLogs = <String>['[$stamp] $message', ..._imageRouterLogs];
-    if (_imageRouterLogs.length > 120) {
-      _imageRouterLogs = _imageRouterLogs.sublist(0, 120);
+    if (_imageRouterLogs.length > _maxImageRouterLogs) {
+      _imageRouterLogs = _imageRouterLogs.sublist(0, _maxImageRouterLogs);
     }
     await _persistImageRouterSettings();
     notifyListeners();
@@ -2229,7 +2231,7 @@ class SettingsProvider extends ChangeNotifier {
           0,
           (sum, e) => sum + e.channel.weight.clamp(1, 100),
         );
-        var point = math.Random().nextInt(math.max(1, total));
+        var point = _imageRouterRandom.nextInt(math.max(1, total));
         picked = candidates.first;
         for (final c in candidates) {
           point -= c.channel.weight.clamp(1, 100);

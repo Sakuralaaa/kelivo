@@ -8,6 +8,7 @@ import '../../shared/widgets/ios_switch.dart';
 
 class DesktopImageRouterPane extends StatelessWidget {
   const DesktopImageRouterPane({super.key});
+  static const int _maxDisplayedLogs = 24;
 
   String _strategyLabel(BuildContext context, ImageRouterStrategy strategy) {
     final l10n = AppLocalizations.of(context)!;
@@ -228,7 +229,7 @@ class DesktopImageRouterPane extends StatelessWidget {
                         ),
                       )
                     else
-                      for (final line in settings.imageRouterLogs.take(24))
+                      for (final line in settings.imageRouterLogs.take(_maxDisplayedLogs))
                         Padding(
                           padding: const EdgeInsets.fromLTRB(12, 2, 12, 2),
                           child: Text(
