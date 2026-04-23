@@ -324,6 +324,7 @@ class SettingsProvider extends ChangeNotifier {
   ///
   /// This flag only changes shell/interaction defaults and does not remove
   /// existing conversation data or provider configurations.
+  /// Defaults to `true` to keep desktop workflows image-first out of box.
   bool _pureImageMode = true;
   bool get pureImageMode => _pureImageMode;
   bool _imageRouterEnabled = true;
@@ -2055,7 +2056,8 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   void _ensureImageRouterChannelDefaults() {
-    // Default image gateway priority: ChatGPT2API > Grok2API > Flow2API.
+    // Default image gateway priority (weights): ChatGPT2API (4)
+    // > Grok2API (3) > Flow2API (2).
     // The weights are relative probabilities for weighted routing.
     const defaults = <String, int>{
       'ChatGPT2API': 4,

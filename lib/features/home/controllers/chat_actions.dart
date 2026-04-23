@@ -141,6 +141,9 @@ class ChatActions {
   bool _isImageGenerationRequest(String text) =>
       text.contains('[image_generation_request]');
 
+  /// Finds the nearest user message content at or before [startIndex].
+  ///
+  /// Returns [fallback] when no preceding user message exists.
   String _findPrecedingUserMessageContent(int startIndex, String fallback) {
     for (int i = startIndex; i >= 0; i--) {
       if (_messages[i].role == 'user') {
